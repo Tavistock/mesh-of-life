@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesh of Life</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/",
+      "qrcode": "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/+esm"
+    }
+  }
+  </script>
+</head>
+
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="ui-panel">
+        <div class="panel-section">
+            <h3>Mesh</h3>
+            <div class="control-row">
+                <label for="primitive-select">Primitive:</label>
+                <select id="primitive-select">
+                    <option value="icosahedron">Icosahedron</option>
+                    <option value="sphere">Sphere (geodesic)</option>
+                    <option value="torus">Torus</option>
+                    <option value="box">Box</option>
+                    <optgroup label="Test models">
+                        <option value="teapot">Utah Teapot</option>
+                        <option value="bunny">Stanford Bunny</option>
+                        <option value="suzanne">Suzanne (monkey)</option>
+                        <option value="cow">Cow</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="detail-slider">Detail: <span id="detail-value">128</span></label>
+                <input type="range" id="detail-slider" min="0" max="8" value="7">
+            </div>
+            <div class="control-row">
+                <button id="load-primitive">Load Primitive</button>
+            </div>
+            <div class="control-row">
+                <input type="file" id="file-input" accept=".glb,.gltf,.obj,.stl,.ply,.fbx" style="display:none;">
+                <button id="file-btn" class="secondary">Choose File</button>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Simulation</h3>
+            <div class="control-row">
+                <button id="play-btn">Play</button>
+                <button id="pause-btn" class="secondary">Pause</button>
+                <button id="step-btn" class="secondary">Step</button>
+                <button id="reset-btn" class="secondary">Reset</button>
+            </div>
+            <div class="control-row">
+                <label for="speed-slider">Speed: <span id="speed-value">10</span> gen/s</label>
+                <input type="range" id="speed-slider" min="1" max="60" value="10">
+            </div>
+            <div class="control-row preset-row" id="preset-row">
+                <label for="rule-preset">Preset:</label>
+                <select id="rule-preset">
+                    <option value="custom">Custom</option>
+                    <option value="B3/S23">Conway's Life (B3/S23)</option>
+                    <option value="B36/S23">HighLife (B36/S23)</option>
+                    <option value="B3678/S34678">Day &amp; Night (B3678/S34678)</option>
+                    <option value="B2/S">Seeds (B2/S)</option>
+                    <option value="B3/S012345678">Life without Death (B3/S012345678)</option>
+                    <option value="B3/S12345">Maze (B3/S12345)</option>
+                    <option value="B35678/S5678">Diamoeba (B35678/S5678)</option>
+                    <option value="B36/S125">2x2 (B36/S125)</option>
+                    <option value="B1357/S1357">Replicator (B1357/S1357)</option>
+                    <option value="B3/S45678">Coral (B3/S45678)</option>
+                    <option value="B1/S1">Gnarl (B1/S1)</option>
+                    <option value="B368/S245">Move (B368/S245)</option>
+                    <option value="B357/S238">Pseudo Life (B357/S238)</option>
+                    <option value="B3678/S235678">Stains (B3678/S235678)</option>
+                    <option value="B5678/S45678">Vote (B5678/S45678)</option>
+                    <option value="B234/S">Serviettes (B234/S)</option>
+                    <option value="B567/S9ABCDEFGHI">Streptococcus (B567/S9ABCDEFGHI)</option>
+                    <option value="B345/S456">Anneal (B345/S456)</option>
+                    <option value="B345/S45678">Life 34 (B345/S45678)</option>
+                    <option value="B345/S4567">Life 34 variant (B345/S4567)</option>
+                </select>
+                <div class="rule-tooltip" id="rule-tooltip"></div>
+            </div>
+            <div class="control-row">
+                <label>Rule:</label>
+                <span id="rule-display" class="rule-display">B3/S23</span>
+            </div>
+            <div class="control-row">
+                <label for="rule-hex">Hex:</label>
+                <input type="text" id="rule-hex" class="rule-hex" spellcheck="false"
+                       placeholder="B0x08/S0x0C">
+            </div>
+            <div class="rule-grid" id="rule-grid"></div>
+            <div class="control-row">
+                <label class="rule-radio" for="vertex-adjacency">
+                    <input type="checkbox" id="vertex-adjacency" checked>
+                    <span>Vertex adjacency</span>
+                </label>
+            </div>
+            <div class="control-row">
+                <button id="randomize-btn">Randomize</button>
+                <button id="clear-btn" class="secondary">Clear</button>
+            </div>
+            <div class="control-row">
+                <label>Gen: <span id="gen-count">0</span></label>
+                <label>Alive: <span id="alive-count">0</span></label>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Paint</h3>
+            <div class="control-row">
+                <label class="rule-radio" for="paint-mode">
+                    <input type="checkbox" id="paint-mode">
+                    <span>Paint mode</span>
+                </label>
+            </div>
+            <div class="control-row">
+                <label for="brush-size">Brush: <span id="brush-size-value">3</span></label>
+                <input type="range" id="brush-size" min="1" max="10" value="3">
+            </div>
+            <div class="control-row">
+                <label for="brush-density">Density: <span id="brush-density-value">50</span>%</label>
+                <input type="range" id="brush-density" min="1" max="100" value="50">
+            </div>
+            <div class="control-row">
+                <label class="rule-radio" for="brush-continuous">
+                    <input type="checkbox" id="brush-continuous">
+                    <span>Continuous (drag to paint)</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Image</h3>
+            <div class="control-row">
+                <input type="file" id="image-input" accept="image/*" style="display:none;">
+                <button id="image-btn" class="secondary">Choose Image</button>
+            </div>
+            <div class="control-row">
+                <label for="qr-text">QR text / URL:</label>
+                <input type="text" id="qr-text" placeholder="https://example.com" spellcheck="false">
+            </div>
+            <div class="control-row">
+                <button id="qr-generate" class="secondary">Generate QR</button>
+                <button id="qr-current" class="secondary">Use Current URL</button>
+            </div>
+            <div class="image-preview-wrap">
+                <canvas id="image-preview" width="248" height="248"></canvas>
+                <div class="image-preview-hint" id="image-preview-hint">Choose an image to preview</div>
+            </div>
+            <div class="control-row">
+                <label for="image-projection">Projection:</label>
+                <select id="image-projection">
+                    <option value="spherical">Spherical (wrap)</option>
+                    <option value="front">Front (planar)</option>
+                    <option value="side">Side (planar)</option>
+                    <option value="top">Top (planar)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label for="image-scale">Scale: <span id="image-scale-value">100</span>%</label>
+                <input type="range" id="image-scale" min="10" max="400" value="100">
+            </div>
+            <div class="control-row">
+                <label for="image-rotation">Rotate: <span id="image-rotation-value">0</span>&deg;</label>
+                <input type="range" id="image-rotation" min="-180" max="180" value="0">
+            </div>
+            <div class="control-row">
+                <label for="image-offset-x">X: <span id="image-offset-x-value">0</span></label>
+                <input type="range" id="image-offset-x" min="-100" max="100" value="0">
+            </div>
+            <div class="control-row">
+                <label for="image-offset-y">Y: <span id="image-offset-y-value">0</span></label>
+                <input type="range" id="image-offset-y" min="-100" max="100" value="0">
+            </div>
+            <div class="control-row">
+                <button id="image-reset" class="secondary">Reset Transform</button>
+            </div>
+            <div class="control-row">
+                <label for="image-threshold">Threshold: <span id="image-threshold-value">50</span>%</label>
+                <input type="range" id="image-threshold" min="1" max="100" value="50">
+            </div>
+            <div class="control-row">
+                <label class="rule-radio" for="image-invert">
+                    <input type="checkbox" id="image-invert">
+                    <span>Invert (dark = alive)</span>
+                </label>
+            </div>
+            <div class="control-row">
+                <label class="rule-radio" for="image-live">
+                    <input type="checkbox" id="image-live">
+                    <span>Live preview on mesh</span>
+                </label>
+            </div>
+            <div class="control-row">
+                <button id="image-apply" class="secondary" disabled>Apply to Mesh</button>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Colors</h3>
+            <div class="color-grid">
+                <label class="color-item" for="bg-color">
+                    <input type="color" id="bg-color" value="#111111">
+                    <span>Background</span>
+                </label>
+                <label class="color-item" for="dead-color">
+                    <input type="color" id="dead-color" value="#1a1a1a">
+                    <span>Dead cell</span>
+                </label>
+                <label class="color-item" for="cell-color">
+                    <input type="color" id="cell-color" value="#00ff88">
+                    <span>Alive cell</span>
+                </label>
+                <label class="color-item" for="age-color">
+                    <input type="color" id="age-color" value="#ffff00">
+                    <span>Age end</span>
+                </label>
+            </div>
+            <div class="control-row" style="margin-top: 10px;">
+                <button id="randomize-colors-btn" class="secondary">Randomize Colors</button>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h3>Info</h3>
+            <div class="control-row">
+                <label>Faces: <span id="face-count">0</span></label>
+            </div>
+            <div class="control-row">
+                <label>Avg neighbors: <span id="avg-neighbors">0</span></label>
+            </div>
+            <div class="control-row">
+                <label>FPS: <span id="fps-count">0</span></label>
+            </div>
+            <div class="control-row">
+                <label>Engine: <span id="engine-mode">GPU</span></label>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+
+</html>

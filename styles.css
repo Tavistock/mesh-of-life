@@ -1,0 +1,437 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #000;
+    color: #eee;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+}
+
+#canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#canvas.paint-mode {
+    cursor: crosshair;
+}
+
+.image-preview-wrap {
+    position: relative;
+    width: 100%;
+    margin: 8px 0;
+    border: 1px solid #333;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #0a0a0c;
+}
+
+#image-preview {
+    display: block;
+    width: 100%;
+    height: auto;
+    cursor: grab;
+    touch-action: none;
+}
+
+#image-preview.dragging {
+    cursor: grabbing;
+}
+
+.image-preview-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    font-size: 12px;
+    pointer-events: none;
+    text-align: center;
+    padding: 0 12px;
+}
+
+#ui-panel {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 280px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: rgba(20, 20, 24, 0.95);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 16px;
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    font-size: 13px;
+}
+
+.panel-section {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #2a2a2e;
+}
+
+.panel-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.panel-section h3 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+    margin-bottom: 12px;
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.control-row:last-child {
+    margin-bottom: 0;
+}
+
+.control-row label {
+    flex: 1;
+    min-width: 80px;
+    color: #ccc;
+}
+
+.control-row select,
+.control-row input[type="text"],
+.control-row input[type="color"],
+.control-row input[type="range"] {
+    flex: 1;
+    min-width: 100px;
+}
+
+.control-row input[type="color"] {
+    width: 48px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background: none;
+}
+
+.control-row input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.control-row input[type="color"]::-webkit-color-swatch {
+    border: 1px solid #444;
+    border-radius: 3px;
+}
+
+.control-row input[type="range"] {
+    accent-color: #00ff88;
+}
+
+.control-row input[type="text"] {
+    background: #1a1a1e;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 6px 8px;
+    color: #eee;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.control-row select {
+    background: #1a1a1e;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 6px 8px;
+    color: #eee;
+    font-size: 12px;
+}
+
+button {
+    background: #00ff88;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 14px;
+    color: #111;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+}
+
+button:hover {
+    background: #00e67a;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+button:disabled {
+    background: #333;
+    color: #666;
+    cursor: not-allowed;
+}
+
+button.secondary {
+    background: #2a2a2e;
+    color: #ddd;
+    border: 1px solid #444;
+}
+
+button.secondary:hover {
+    background: #333;
+    border-color: #555;
+}
+
+#speed-value {
+    min-width: 36px;
+    text-align: right;
+    color: #00ff88;
+    font-variant-numeric: tabular-nums;
+}
+
+#gen-count,
+#alive-count,
+#face-count,
+#avg-neighbors {
+    color: #00ff88;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+.rule-display {
+    font-family: monospace;
+    font-size: 13px;
+    color: #00ff88;
+    background: #1a1a1e;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    min-width: 80px;
+    text-align: center;
+}
+
+.rule-hex {
+    flex: 1;
+    font-family: monospace;
+    font-size: 12px;
+    color: #eee;
+    background: #1a1a1e;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    text-transform: uppercase;
+}
+
+.rule-hex:focus {
+    outline: none;
+    border-color: #00ff88;
+}
+
+.rule-hex.invalid {
+    border-color: #ff4466;
+    color: #ff4466;
+}
+
+.rule-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 10px;
+}
+
+.rule-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.rule-row:hover {
+    background: #1a1a1e;
+}
+
+.rule-num {
+    width: 22px;
+    flex: 0 0 auto;
+    text-align: right;
+    font-family: monospace;
+    font-size: 12px;
+    color: #888;
+}
+
+.rule-radio {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #888;
+    user-select: none;
+}
+
+.rule-radio input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1px solid #444;
+    border-radius: 50%;
+    background: #1a1a1e;
+    cursor: pointer;
+    margin: 0;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+/* While dragging across the grid, avoid text selection and show a paint cursor */
+.rule-grid.painting {
+    cursor: crosshair;
+    user-select: none;
+}
+
+.rule-grid.painting .rule-radio input[type="checkbox"] {
+    cursor: crosshair;
+}
+
+.rule-radio input[type="checkbox"]:hover {
+    border-color: #666;
+}
+
+.rule-radio input[type="checkbox"]:checked {
+    background: #00ff88;
+    border-color: #00ff88;
+    box-shadow: inset 0 0 0 2px #1a1a1e;
+}
+
+.rule-radio:has(input:checked) {
+    color: #00ff88;
+}
+
+/* Vertex adjacency toggle: match the rule toggle style */
+.control-row label.rule-radio {
+    flex: 0 0 auto;
+    min-width: 0;
+    font-size: 12px;
+    color: #888;
+    gap: 6px;
+}
+
+.control-row label.rule-radio:has(input:checked) {
+    color: #00ff88;
+}
+
+.preset-row {
+    position: relative;
+}
+
+.rule-tooltip {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: #0d0d10;
+    border: 1px solid #3a3a40;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #bbb;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.rule-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.rule-tooltip strong {
+    color: #00ff88;
+    font-weight: 600;
+}
+
+.color-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.color-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 4px;
+    background: #1a1a1e;
+    border: 1px solid #2a2a2e;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.color-item:hover {
+    border-color: #444;
+}
+
+.color-item input[type="color"] {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    border: none;
+    border-radius: 3px;
+    padding: 0;
+    background: none;
+    cursor: pointer;
+}
+
+.color-item input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.color-item input[type="color"]::-webkit-color-swatch {
+    border: 1px solid #444;
+    border-radius: 3px;
+}
+
+.color-item span {
+    font-size: 11px;
+    color: #bbb;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+    #ui-panel {
+        top: auto;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        width: 100%;
+        max-height: 50vh;
+        border-radius: 12px 12px 0 0;
+        border-bottom: none;
+    }
+}
