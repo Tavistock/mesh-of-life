@@ -23,9 +23,8 @@ uniform vec3 deadColor;
 uniform vec3 cellColor;
 uniform vec3 ageColor;
 uniform float maxAge;
-uniform sampler2D highlightTex;   // 1 texel per face, r = outline flag
-uniform vec3 highlightColor;
-uniform float highlightStrength;
+uniform sampler2D highlightTex;   // 1 texel per face, r = brush flag
+uniform float highlightStrength;  // how much to brighten highlighted faces
 
 varying float vFaceId;
 
@@ -43,10 +42,11 @@ void main() {
     vec3 aliveCol = mix(cellColor, ageColor, t);
     vec3 col = mix(deadColor, aliveCol, alive);
 
-    // Brush outline overlay (paint-mode hover). highlightStrength is 0 when
-    // no brush is active, so this is a no-op outside paint mode.
+    // Brush highlight (hover): brighten every face in the brush toward white,
+    // toward white, keeping its current color. highlightStrength is 0 when no
+    // brush is active, so this is a no-op outside paint mode.
     float hl = texture2D(highlightTex, uv).r;
-    col = mix(col, highlightColor, hl * highlightStrength);
+    col = mix(col, vec3(1.0), hl * highlightStrength);
 
     gl_FragColor = vec4(col, 1.0);
 }
@@ -98,8 +98,7 @@ export class MeshRenderer {
                 ageColor: { value: new THREE.Color(this.ageColor) },
                 maxAge: { value: 100 },
                 highlightTex: { value: null },
-                highlightColor: { value: new THREE.Color(0xffffff) },
-                highlightStrength: { value: 0 }
+                highlightStrength: { value: 0.35 }
             }
         });
 
@@ -122,9 +121,9 @@ export class MeshRenderer {
         this.scene.add(this.mesh);
     }
 
-    // Replace the outline set. `faces` is an iterable of face indices to
-    // outline; pass null/empty to clear. Uploads the whole small texture.
-    setHighlight(faces) {
+    // Replace the brush highlight set. `faces` is an iterable of face indices
+    // to brighten; pass null/empty to clear. Uploads the whole small texture.
+    setBrushHighlight(faces) {
         if (!this.highlightData) return;
         this.highlightData.fill(0);
         if (faces) {
@@ -133,18 +132,12 @@ export class MeshRenderer {
             }
         }
         this.highlightTexture.needsUpdate = true;
-        this.material.uniforms.highlightStrength.value = faces && faces.length ? 1 : 0;
     }
 
-    clearHighlight() {
+    clearBrushHighlight() {
         if (!this.highlightData) return;
         this.highlightData.fill(0);
         this.highlightTexture.needsUpdate = true;
-        this.material.uniforms.highlightStrength.value = 0;
-    }
-
-    setHighlightColor(hex) {
-        if (this.material) this.material.uniforms.highlightColor.value.set(hex);
     }
 
     // Bind the GPU engine's current state texture. Called every frame so the

@@ -1,9 +1,41 @@
 // UI wiring: controls, drag & drop, event handlers
 
 import { parseRule, ruleToStrings, formatClassic, isHexRule } from './ruleEncoding.js';
+import { PARAMETRIC_GEOMETRIES } from './parametricGeometries.js';
 import QRCode from 'qrcode';
 
+// Built-in primitives handled directly by createPrimitive(); skip these when
+// generating the parametric list so we don't create duplicate option values.
+const BUILTIN_PRIMITIVES = new Set(['icosahedron', 'sphere', 'torus', 'box']);
+
+// "kleinbottlenordstrand" -> "Kleinbottlenordstrand", "waveBall" -> "Wave Ball".
+function surfaceLabel(key) {
+    const spaced = key
+        .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+    return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+// Populate the primitive dropdown with every registered parametric surface,
+// inserted before the "Test models" group so those stay last.
+function populateParametricOptions() {
+    const select = document.getElementById('primitive-select');
+    const group = document.createElement('optgroup');
+    group.label = 'Parametric surfaces';
+    for (const key of Object.keys(PARAMETRIC_GEOMETRIES)) {
+        if (BUILTIN_PRIMITIVES.has(key)) continue;
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = surfaceLabel(key);
+        group.appendChild(option);
+    }
+    const testGroup = select.querySelector('optgroup[label="Test models"]');
+    select.insertBefore(group, testGroup);
+}
+
 export function setupUI(hooks) {
+    populateParametricOptions();
+
     const {
         loadPrimitive,
         loadFile,
@@ -23,10 +55,8 @@ export function setupUI(hooks) {
         onCanvasClick,
         onCanvasMove,
         onCanvasLeave,
-        setPaintMode,
         setBrushSize,
         setBrushDensity,
-        setBrushContinuous,
         loadImageFile,
         loadImageUrl,
         applyImage,
@@ -348,23 +378,33 @@ export function setupUI(hooks) {
     document.getElementById('age-color').addEventListener('input', (e) => setAgeColor(e.target.value));
     document.getElementById('randomize-colors-btn').addEventListener('click', randomizeColors);
 
-    // Canvas click for cell toggle
-    canvas.addEventListener('click', onCanvasClick);
+    // Canvas click for cell toggle. A click that follows a drag (e.g. an orbit
+    // gesture) is suppressed so dragging never paints or toggles a cell.
+    let pointerDownAt = null;
+    const DRAG_THRESHOLD = 5; // pixels
+    canvas.addEventListener('pointerdown', (e) => {
+        pointerDownAt = { x: e.clientX, y: e.clientY };
+    });
+    canvas.addEventListener('click', (e) => {
+        const down = pointerDownAt;
+        pointerDownAt = null;
+        if (down) {
+            const dx = e.clientX - down.x;
+            const dy = e.clientY - down.y;
+            if (Math.hypot(dx, dy) > DRAG_THRESHOLD) return;
+        }
+        onCanvasClick(e);
+    });
 
-    // --- Paint mode --------------------------------------------------------
-    // When enabled, clicking flips a random subset of the faces within a
-    // radius of the clicked face, and hovering outlines that radius.
-    const paintModeInput = document.getElementById('paint-mode');
+    // --- Paint brush -------------------------------------------------------
+    // The brush is always active: hovering highlights the faces within the
+    // radius, and clicking flips a random subset of them.
     const brushSizeSlider = document.getElementById('brush-size');
     const brushSizeValue = document.getElementById('brush-size-value');
     const brushDensitySlider = document.getElementById('brush-density');
     const brushDensityValue = document.getElementById('brush-density-value');
-    const brushContinuousInput = document.getElementById('brush-continuous');
 
-    paintModeInput.addEventListener('change', () => {
-        setPaintMode(paintModeInput.checked);
-        canvas.classList.toggle('paint-mode', paintModeInput.checked);
-    });
+    canvas.classList.add('paint-mode');
     brushSizeSlider.addEventListener('input', () => {
         brushSizeValue.textContent = brushSizeSlider.value;
         setBrushSize(parseInt(brushSizeSlider.value, 10));
@@ -373,11 +413,8 @@ export function setupUI(hooks) {
         brushDensityValue.textContent = brushDensitySlider.value;
         setBrushDensity(parseInt(brushDensitySlider.value, 10) / 100);
     });
-    brushContinuousInput.addEventListener('change', () => {
-        setBrushContinuous(brushContinuousInput.checked);
-    });
 
-    // Pointer tracking for the brush outline (hover) and drag painting.
+    // Pointer tracking for the brush outline (hover).
     canvas.addEventListener('pointermove', (e) => {
         if (onCanvasMove) onCanvasMove(e);
     });

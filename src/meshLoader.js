@@ -6,6 +6,7 @@ import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { createParametricGeometry } from './parametricGeometries.js';
 
 const loaderGLTF = new GLTFLoader();
 const loaderOBJ = new OBJLoader();
@@ -61,7 +62,9 @@ export function createPrimitive(type, detail = 128) {
             geometry = new THREE.BoxGeometry(1, 1, 1, d, d, d);
             break;
         default:
-            geometry = new THREE.IcosahedronGeometry(1, d);
+            // Parametric surfaces (cone, ...) live in parametricGeometries.js.
+            geometry = createParametricGeometry(type, d)
+                || new THREE.IcosahedronGeometry(1, d);
     }
     return normalizeGeometry(geometry);
 }

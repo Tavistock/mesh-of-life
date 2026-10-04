@@ -43,11 +43,12 @@ let useVertexAdjacency = true;
 let cachedAvgNeighbors = 0; // computed once per mesh load; O(faceCount) to recompute
 
 // Paint brush state
-let paintMode = false;
-let brushSize = 3;        // radius in face-adjacency hops
+let brushSize = 3;        // brush size in cells (1 = just the clicked face)
 let brushDensity = 0.5;   // fraction of faces in the radius to flip
-let brushContinuous = false;
-let lastPaintFace = -1;   // avoids repainting the same face on every move
+let lastPointer = null;   // last pointer position over the canvas, or null
+let brushDirty = true;    // recompute the highlight on the next frame
+let lastCamPos = new THREE.Vector3();       // detects camera moves
+let lastCamQuat = new THREE.Quaternion();
 
 // Image rasterizer state
 let sourceImageData = null;   // downscaled ImageData for sampling
@@ -128,14 +129,12 @@ const ui = setupUI({
     randomizeColors: () => applyRandomColors(),
     onCanvasClick: (e) => handleCanvasClick(e),
     onCanvasMove: (e) => handleCanvasMove(e),
-    onCanvasLeave: () => { if (meshRenderer) meshRenderer.clearHighlight(); },
-    setPaintMode: (on) => {
-        paintMode = on;
-        if (!on && meshRenderer) meshRenderer.clearHighlight();
+    onCanvasLeave: () => {
+        lastPointer = null;
+        if (meshRenderer) meshRenderer.clearBrushHighlight();
     },
-    setBrushSize: (n) => { brushSize = n; },
+    setBrushSize: (n) => { brushSize = n; brushDirty = true; },
     setBrushDensity: (d) => { brushDensity = d; },
-    setBrushContinuous: (on) => { brushContinuous = on; },
     loadImageFile: (file) => {
         loadImage(file).then(handleLoadedImage)
             .catch((err) => console.error('[mesh-of-life] image load failed:', err));
@@ -208,7 +207,24 @@ function applyRandomColors() {
 // Legacy long keys (primitive/detail/rule) are still accepted on read.
 
 const PRIMITIVE_CODES = {
+    // Built-in primitives
     icosahedron: 'i', sphere: 's', torus: 't', box: 'b',
+    // Parametric surfaces (keys match PARAMETRIC_GEOMETRIES)
+    apple: 'ap', bernat: 'be', bowtie: 'bw', breather: 'br', catenoid: 'ca',
+    cone: 'cn', cylinder: 'cy', dinni: 'di', dupincyclide: 'dc', egg: 'eg',
+    enneper: 'en', figure8knot: 'f8', goblet: 'go', helicoid: 'he', horn: 'ho',
+    hyperhelicoid: 'hh', hyperoctahedron: 'hx', hyperparaboloid: 'hp',
+    hyperspiral: 'hs', hypertanspiral: 'ht', juliaheart: 'jh', kleinbottle: 'kb',
+    kleinbottlenordstrand: 'kn', knotFigure8: 'kf', knotsTorusSeifert: 'ks',
+    knotTorus: 'kt', knotTranguloidTrefoil: 'kg', knotTrefoil: 'kr',
+    lawsonbottle: 'lb', maederowl: 'mo', mobius: 'mb', morin: 'mr',
+    paraboloid: 'pb', pillow: 'pw', plane: 'pl', rose: 'ro', seashell: 'sh',
+    sinecosine: 'sc', sinecube: 'su', sinecosinewaves: 'sw', sinusoidalcone: 'sn',
+    snailsmussels: 'sm', spiralwaves: 'sp', torus8figure: 't8',
+    torusantisymmetric: 'ta', torusBianchiPinkall: 'tb', torusbraided: 'td',
+    torusknot: 'tk', torustwisted8: 't9', torustwisted: 'tw', torusumbilic: 'tu',
+    trefoilknot: 'tf', trashcan: 'tc', umbrella: 'um', waveBall: 'wb',
+    // Test models
     teapot: 'tp', bunny: 'bn', suzanne: 'sz', cow: 'cw'
 };
 const CODE_PRIMITIVES = Object.fromEntries(
@@ -316,7 +332,6 @@ function loadMesh(geometry) {
     ui.setPlaying(false);
     lastTick = performance.now();
     accum = 0;
-    lastPaintFace = -1;
 }
 
 function updateColors() {
@@ -353,12 +368,12 @@ function advanceSimulation(maxTicks = 4) {
 }
 
 // Raycast the pointer against the mesh and return the hit face index, or -1.
-function pickFace(event) {
+function pickFace(clientX, clientY) {
     if (!meshRenderer || !currentGeometry) return -1;
     const rect = canvas.getBoundingClientRect();
     const mouse = new THREE.Vector2(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        -((event.clientY - rect.top) / rect.height) * 2 + 1
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1
     );
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
@@ -398,28 +413,10 @@ function collectBrushFaces(startFace, radius) {
     return result;
 }
 
-// Given a set of faces, return only those on its boundary (faces with at
-// least one neighbor outside the set). Used to draw the brush as a ring
-// rather than a filled disc.
-function outlineOf(faces) {
-    const set = new Set(faces);
-    const outline = [];
-    for (const f of faces) {
-        const neighbors = adjacency.getNeighbors(f);
-        for (const n of neighbors) {
-            if (!set.has(n)) {
-                outline.push(f);
-                break;
-            }
-        }
-    }
-    return outline;
-}
-
 // Flip a random subset (brushDensity) of the faces within the brush radius.
 function paintAt(faceIndex) {
     if (!lifeEngine || faceIndex < 0) return;
-    const faces = collectBrushFaces(faceIndex, brushSize);
+    const faces = collectBrushFaces(faceIndex, brushSize - 1);
     const toFlip = [];
     for (const f of faces) {
         if (Math.random() < brushDensity) toFlip.push(f);
@@ -431,32 +428,32 @@ function paintAt(faceIndex) {
 
 function handleCanvasClick(event) {
     if (!meshRenderer || !lifeEngine || !currentGeometry) return;
-    const faceIndex = pickFace(event);
+    const faceIndex = pickFace(event.clientX, event.clientY);
     if (faceIndex < 0) return;
-    if (paintMode) {
-        paintAt(faceIndex);
-        lastPaintFace = faceIndex;
-    } else {
-        lifeEngine.toggleCell(faceIndex);
-        updateColors();
-    }
+    paintAt(faceIndex);
 }
 
-// Hover: outline the brush radius. In continuous mode, dragging also paints.
+// Hover: remember the pointer position and refresh the brush highlight.
+// Painting only happens on click; dragging the pointer just moves the highlight.
 function handleCanvasMove(event) {
-    if (!meshRenderer || !currentGeometry) return;
-    if (!paintMode) return;
-    const faceIndex = pickFace(event);
+    lastPointer = { x: event.clientX, y: event.clientY };
+    brushDirty = true;
+}
+
+// Recompute the brush highlight from the last pointer position. Called every
+// frame while the pointer is over the canvas so the highlight stays in sync
+// when the camera moves (orbit damping, zoom) without the mouse moving.
+function updateBrushHighlight() {
+    if (!meshRenderer || !currentGeometry || !lastPointer) return;
+    // The raycast reads camera.matrixWorld, which is normally refreshed at
+    // render time; make sure it reflects the camera's current transform.
+    camera.updateMatrixWorld();
+    const faceIndex = pickFace(lastPointer.x, lastPointer.y);
     if (faceIndex < 0) {
-        meshRenderer.clearHighlight();
-        lastPaintFace = -1;
+        meshRenderer.clearBrushHighlight();
         return;
     }
-    meshRenderer.setHighlight(outlineOf(collectBrushFaces(faceIndex, brushSize)));
-    if (brushContinuous && event.buttons & 1 && faceIndex !== lastPaintFace) {
-        paintAt(faceIndex);
-        lastPaintFace = faceIndex;
-    }
+    meshRenderer.setBrushHighlight(collectBrushFaces(faceIndex, brushSize - 1));
 }
 
 // Animation loop
@@ -467,6 +464,18 @@ function animate(time) {
     requestAnimationFrame(animate);
 
     controls.update();
+
+    // Keep the brush highlight in sync with the cursor when the camera moves
+    // (orbit damping, zoom) even if the pointer itself hasn't moved.
+    if (!camera.position.equals(lastCamPos) || !camera.quaternion.equals(lastCamQuat)) {
+        lastCamPos.copy(camera.position);
+        lastCamQuat.copy(camera.quaternion);
+        brushDirty = true;
+    }
+    if (brushDirty) {
+        updateBrushHighlight();
+        brushDirty = false;
+    }
 
     // FPS measurement (updated ~2x per second)
     fpsFrames++;

@@ -52,17 +52,26 @@ export function hslToHex(h, s, l) {
     return rgbToHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
 }
 
-// Generate a harmonious random palette: dark background, muted dead cells,
-// a vivid alive color, and a contrasting age-gradient end color.
 export function randomPalette() {
-    const hue = Math.random() * 360;
-    // Age color is offset around the wheel for contrast
-    const ageHue = hue + 120 + Math.random() * 120;
-
+    const cellLightness = Math.random() * 100
+    const deadLightness = (cellLightness + 25 + (Math.random() * 50)) % 100;
+    
     return {
-        bg: hslToHex(hue, 20 + Math.random() * 25, 4 + Math.random() * 6),
-        dead: hslToHex(hue, 15 + Math.random() * 20, 12 + Math.random() * 10),
-        cell: hslToHex(hue, 70 + Math.random() * 30, 50 + Math.random() * 15),
-        age: hslToHex(ageHue, 80 + Math.random() * 20, 55 + Math.random() * 15)
+        bg: hslToHex(Math.random() * 360, Math.random() * 100, Math.random() * 100),
+        dead: hslToHex(Math.random() * 360, Math.random() * 100, deadLightness),
+        cell: hslToHex(Math.random() * 360, Math.random() * 100, cellLightness),
+        age: hslToHex(Math.random() * 360, Math.random() * 100, Math.random() * 100)
     };
+    // Generate a harmonious random palette: dark background, muted dead cells,
+    // a vivid alive color, and a contrasting age-gradient end color.
+    // const hue = Math.random() * 360;
+    // // Age color is offset around the wheel for contrast
+    // const ageHue = hue + 120 + Math.random() * 120;
+
+    // return {
+    //     bg: hslToHex(hue, 20 + Math.random() * 25, 20 + Math.random() * 5),
+    //     dead: hslToHex(hue, 70 + Math.random() * 30, 40 + Math.random() * 10),
+    //     cell: hslToHex(hue, 70 + Math.random() * 30, 55 + Math.random() * 15),
+    //     age: hslToHex(ageHue, 80 + Math.random() * 20, 55 + Math.random() * 15)
+    // };
 }
