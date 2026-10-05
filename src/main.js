@@ -47,6 +47,8 @@ let brushSize = 3;        // brush size in cells (1 = just the clicked face)
 let brushDensity = 0.5;   // fraction of faces in the radius to flip
 let lastPointer = null;   // last pointer position over the canvas, or null
 let brushDirty = true;    // recompute the highlight on the next frame
+let lastBrushFace = -1;   // last face under the cursor (dedupes highlight uploads)
+let brushPickPending = false; // a GPU pick readback is in flight
 let lastCamPos = new THREE.Vector3();       // detects camera moves
 let lastCamQuat = new THREE.Quaternion();
 
@@ -76,12 +78,39 @@ if (!gpuSupported) {
 
 // Load a mesh by primitive type: either a procedural primitive (honoring the
 // detail slider) or a hosted test model (fixed resolution).
-function loadPrimitiveMesh(type, detail) {
-    if (TEST_MODELS[type]) {
-        loadTestModel(type).then(loadMesh);
+//
+// The mesh build is synchronous and can block the main thread for seconds at
+// high detail, so the loading overlay is shown first and the work is deferred
+// until after a paint (double rAF) to keep the UI responsive-looking.
+function deferAfterPaint(fn) {
+    if (document.visibilityState === 'visible') {
+        requestAnimationFrame(() => requestAnimationFrame(fn));
     } else {
-        loadMesh(createPrimitive(type, detail));
+        // rAF never fires in a background tab; fall back to a macrotask.
+        setTimeout(fn, 0);
     }
+}
+
+function loadPrimitiveMesh(type, detail) {
+    ui.setLoading(true, 'Loading mesh\u2026');
+    deferAfterPaint(() => {
+        try {
+            if (TEST_MODELS[type]) {
+                loadTestModel(type)
+                    .then((geo) => { loadMesh(geo); ui.setLoading(false); })
+                    .catch((err) => {
+                        console.error('[mesh-of-life] test model load failed:', err);
+                        ui.setLoading(false);
+                    });
+            } else {
+                loadMesh(createPrimitive(type, detail));
+                ui.setLoading(false);
+            }
+        } catch (err) {
+            console.error('[mesh-of-life] mesh load failed:', err);
+            ui.setLoading(false);
+        }
+    });
 }
 
 // UI hooks
@@ -89,16 +118,24 @@ const ui = setupUI({
     loadPrimitive: (type, detail) => loadPrimitiveMesh(type, detail),
     loadFile: (file) => {
         const ext = file.name.toLowerCase().split('.').pop();
+        ui.setLoading(true, 'Loading mesh\u2026');
+        const done = (geo) => { loadMesh(geo); ui.setLoading(false); };
+        const fail = (err) => {
+            console.error('[mesh-of-life] mesh load failed:', err);
+            ui.setLoading(false);
+        };
         if (ext === 'glb' || ext === 'gltf') {
-            loadGLTF(file).then(loadMesh);
+            loadGLTF(file).then(done).catch(fail);
         } else if (ext === 'obj') {
-            loadOBJ(file).then(loadMesh);
+            loadOBJ(file).then(done).catch(fail);
         } else if (ext === 'stl') {
-            loadSTL(file).then(loadMesh);
+            loadSTL(file).then(done).catch(fail);
         } else if (ext === 'ply') {
-            loadPLY(file).then(loadMesh);
+            loadPLY(file).then(done).catch(fail);
         } else if (ext === 'fbx') {
-            loadFBX(file).then(loadMesh);
+            loadFBX(file).then(done).catch(fail);
+        } else {
+            ui.setLoading(false);
         }
     },
     play: () => { isPlaying = true; ui.setPlaying(true); },
@@ -131,9 +168,10 @@ const ui = setupUI({
     onCanvasMove: (e) => handleCanvasMove(e),
     onCanvasLeave: () => {
         lastPointer = null;
+        lastBrushFace = -1;
         if (meshRenderer) meshRenderer.clearBrushHighlight();
     },
-    setBrushSize: (n) => { brushSize = n; brushDirty = true; },
+    setBrushSize: (n) => { brushSize = n; brushDirty = true; lastBrushFace = -1; },
     setBrushDensity: (d) => { brushDensity = d; },
     loadImageFile: (file) => {
         loadImage(file).then(handleLoadedImage)
@@ -332,6 +370,8 @@ function loadMesh(geometry) {
     ui.setPlaying(false);
     lastTick = performance.now();
     accum = 0;
+    lastBrushFace = -1;
+    brushPickPending = false;
 }
 
 function updateColors() {
@@ -368,6 +408,7 @@ function advanceSimulation(maxTicks = 4) {
 }
 
 // Raycast the pointer against the mesh and return the hit face index, or -1.
+// CPU fallback used only when GPU picking is unavailable.
 function pickFace(clientX, clientY) {
     if (!meshRenderer || !currentGeometry) return -1;
     const rect = canvas.getBoundingClientRect();
@@ -383,6 +424,17 @@ function pickFace(clientX, clientY) {
         if (faceIndex !== undefined && faceIndex >= 0) return faceIndex;
     }
     return -1;
+}
+
+// Pick the face under the cursor. Prefers GPU picking (a 1x1 render + a cheap
+// synchronous readback, cost independent of face count) and falls back to the
+// CPU raycast if the renderer has no picking mesh. Always resolves to a face
+// index or -1.
+function pickFaceAsync(clientX, clientY) {
+    if (meshRenderer) {
+        return meshRenderer.pickFaceGPU(clientX, clientY, camera, renderer);
+    }
+    return Promise.resolve(pickFace(clientX, clientY));
 }
 
 // Breadth-first expansion over face adjacency, returning the faces within
@@ -428,9 +480,11 @@ function paintAt(faceIndex) {
 
 function handleCanvasClick(event) {
     if (!meshRenderer || !lifeEngine || !currentGeometry) return;
-    const faceIndex = pickFace(event.clientX, event.clientY);
-    if (faceIndex < 0) return;
-    paintAt(faceIndex);
+    const { clientX, clientY } = event;
+    pickFaceAsync(clientX, clientY).then((faceIndex) => {
+        if (faceIndex < 0) return;
+        paintAt(faceIndex);
+    });
 }
 
 // Hover: remember the pointer position and refresh the brush highlight.
@@ -440,20 +494,37 @@ function handleCanvasMove(event) {
     brushDirty = true;
 }
 
-// Recompute the brush highlight from the last pointer position. Called every
-// frame while the pointer is over the canvas so the highlight stays in sync
-// when the camera moves (orbit damping, zoom) without the mouse moving.
+// Recompute the brush highlight from the last pointer position. Uses GPU face
+// picking (a 1x1 render + async readback) so the cost is independent of face
+// count. Called every frame while the pointer is over the canvas so the
+// highlight stays in sync when the camera moves (orbit damping, zoom) without
+// the mouse moving.
 function updateBrushHighlight() {
     if (!meshRenderer || !currentGeometry || !lastPointer) return;
-    // The raycast reads camera.matrixWorld, which is normally refreshed at
-    // render time; make sure it reflects the camera's current transform.
+    // Only one readback in flight at a time; the next frame retries.
+    if (brushPickPending) return;
+    brushPickPending = true;
+    // The pick reads camera.matrixWorld, which is normally refreshed at render
+    // time; make sure it reflects the camera's current transform.
     camera.updateMatrixWorld();
-    const faceIndex = pickFace(lastPointer.x, lastPointer.y);
-    if (faceIndex < 0) {
-        meshRenderer.clearBrushHighlight();
-        return;
-    }
-    meshRenderer.setBrushHighlight(collectBrushFaces(faceIndex, brushSize - 1));
+    const pickX = lastPointer.x;
+    const pickY = lastPointer.y;
+    pickFaceAsync(pickX, pickY).then((faceIndex) => {
+        brushPickPending = false;
+        if (!meshRenderer || !lastPointer) return;
+        // If the pointer moved while the readback was in flight, pick again.
+        if (lastPointer.x !== pickX || lastPointer.y !== pickY) brushDirty = true;
+        if (faceIndex < 0) {
+            if (lastBrushFace !== -1) {
+                lastBrushFace = -1;
+                meshRenderer.clearBrushHighlight();
+            }
+            return;
+        }
+        if (faceIndex === lastBrushFace) return; // highlight unchanged
+        lastBrushFace = faceIndex;
+        meshRenderer.setBrushHighlight(collectBrushFaces(faceIndex, brushSize - 1));
+    });
 }
 
 // Animation loop

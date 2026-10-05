@@ -155,58 +155,87 @@ export function normalizeGeometry(geometry) {
     }
     position.needsUpdate = true;
 
-    geometry.computeVertexNormals();
+    // Normals are unused: the renderer uses a flat per-face shader (no lighting)
+    // and the rasterizer only reads positions. Drop them instead of recomputing
+    // (computeVertexNormals was ~220ms at 333k faces and allocated a large buffer).
+    geometry.deleteAttribute('normal');
     geometry.computeBoundingSphere();
 
     return geometry;
 }
 
-// Simple vertex welding by quantized position hash
+// Vertex welding by quantized position hash. Uses a numeric hash with exact
+// collision checks; a string key per vertex was ~8x slower at ~1M vertices.
 function mergeVertices(geometry) {
     const position = geometry.attributes.position;
-    const vertexMap = new Map();
-    const newIndices = new Array(position.count);
-    const newPositions = [];
+    const count = position.count;
     const quantization = 1e-4;
 
-    for (let i = 0; i < position.count; i++) {
-        const x = Math.round(position.getX(i) / quantization);
-        const y = Math.round(position.getY(i) / quantization);
-        const z = Math.round(position.getZ(i) / quantization);
-        const key = `${x},${y},${z}`;
+    const vertexMap = new Map();       // hash -> newIndex | newIndex[]
+    const newIndices = new Uint32Array(count);
+    const newPositions = [];           // flat xyz
+    const qx = [];                     // quantized ints per new vertex, used to
+    const qy = [];                     // resolve hash collisions exactly
+    const qz = [];
 
-        let newIndex = vertexMap.get(key);
-        if (newIndex === undefined) {
+    for (let i = 0; i < count; i++) {
+        const px = position.getX(i);
+        const py = position.getY(i);
+        const pz = position.getZ(i);
+        const x = Math.round(px / quantization);
+        const y = Math.round(py / quantization);
+        const z = Math.round(pz / quantization);
+        const hash = (Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(z, 83492791)) >>> 0;
+
+        let newIndex = -1;
+        let isNew = false;
+        const entry = vertexMap.get(hash);
+        if (entry === undefined) {
             newIndex = newPositions.length / 3;
-            vertexMap.set(key, newIndex);
-            newPositions.push(position.getX(i), position.getY(i), position.getZ(i));
+            isNew = true;
+            vertexMap.set(hash, newIndex);
+        } else if (typeof entry === 'number') {
+            if (qx[entry] === x && qy[entry] === y && qz[entry] === z) {
+                newIndex = entry;
+            } else {
+                // Hash collision: promote this bucket to a list.
+                newIndex = newPositions.length / 3;
+                isNew = true;
+                vertexMap.set(hash, [entry, newIndex]);
+            }
+        } else {
+            for (let j = 0; j < entry.length; j++) {
+                const idx = entry[j];
+                if (qx[idx] === x && qy[idx] === y && qz[idx] === z) { newIndex = idx; break; }
+            }
+            if (newIndex === -1) {
+                newIndex = newPositions.length / 3;
+                isNew = true;
+                entry.push(newIndex);
+            }
+        }
+
+        if (isNew) {
+            newPositions.push(px, py, pz);
+            qx.push(x); qy.push(y); qz.push(z);
         }
         newIndices[i] = newIndex;
     }
 
     const newGeometry = new THREE.BufferGeometry();
-    newGeometry.setIndex(newIndices);
+    newGeometry.setIndex(new THREE.BufferAttribute(newIndices, 1));
     newGeometry.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3));
 
-    // Copy other attributes if they exist (normals, uvs)
-    if (geometry.attributes.normal) {
-        const normals = [];
-        for (let i = 0; i < position.count; i++) {
-            const ni = newIndices[i] * 3;
-            normals[ni] = geometry.attributes.normal.getX(i);
-            normals[ni + 1] = geometry.attributes.normal.getY(i);
-            normals[ni + 2] = geometry.attributes.normal.getZ(i);
-        }
-        newGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-    }
+    // Copy UVs if present (normals are intentionally dropped, see above).
     if (geometry.attributes.uv) {
-        const uvs = [];
-        for (let i = 0; i < position.count; i++) {
+        const uv = geometry.attributes.uv;
+        const uvs = new Float32Array((newPositions.length / 3) * 2);
+        for (let i = 0; i < count; i++) {
             const ui = newIndices[i] * 2;
-            uvs[ui] = geometry.attributes.uv.getX(i);
-            uvs[ui + 1] = geometry.attributes.uv.getY(i);
+            uvs[ui] = uv.getX(i);
+            uvs[ui + 1] = uv.getY(i);
         }
-        newGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        newGeometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     }
 
     return newGeometry;

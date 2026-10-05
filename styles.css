@@ -23,6 +23,45 @@ body {
     cursor: crosshair;
 }
 
+#loading-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(2px);
+    z-index: 200;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.15s ease;
+}
+
+#loading-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #00ff88;
+    border-radius: 50%;
+    animation: loading-spin 0.8s linear infinite;
+}
+
+@keyframes loading-spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-label {
+    font-size: 13px;
+    color: #ccc;
+}
+
 .image-preview-wrap {
     position: relative;
     width: 100%;
@@ -86,13 +125,160 @@ body {
     padding-bottom: 0;
 }
 
-.panel-section h3 {
+/* Collapsible section header: the whole row is a button so the hit target
+   spans the panel width. */
+.section-header {
+    margin: 0;
+}
+
+.section-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 2px 0;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    color: #888;
     font-size: 12px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #888;
+    text-align: left;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.section-toggle:hover {
+    background: none;
+    color: #ccc;
+}
+
+.section-toggle:active {
+    transform: none;
+}
+
+.section-toggle:focus-visible {
+    outline: 2px solid #00ff88;
+    outline-offset: 2px;
+}
+
+.section-title {
+    flex: 1;
+}
+
+/* Small status pill shown in a section header (e.g. "Paused", "B3/S23", FPS). */
+.section-badge {
+    flex: 0 0 auto;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: none;
+    color: #00ff88;
+    background: #1a1a1e;
+    border: 1px solid #333;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.section-badge.rule-display {
+    font-family: monospace;
+    font-size: 11px;
+    min-width: 0;
+    padding: 2px 8px;
+}
+
+/* Sub-heading inside a section body (e.g. Image / QR code / Placement). */
+.subsection-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    margin: 14px 0 8px;
+}
+
+.subsection-label:first-child {
+    margin-top: 0;
+}
+
+/* Live swatch strip showing the current dead / alive / age colors. */
+.color-preview {
+    display: flex;
+    height: 26px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #333;
+    margin-bottom: 10px;
+}
+
+.color-preview-seg {
+    flex: 1;
+    transition: background 0.15s;
+}
+
+/* Compact two-column stat readout for the Info section. */
+.stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: #1a1a1e;
+    border: 1px solid #2a2a2e;
+}
+
+.stat-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #777;
+}
+
+.stat-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #00ff88;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Chevron drawn with borders so no icon font/asset is needed. */
+.section-chevron {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform 0.2s ease;
+}
+
+.panel-section.collapsed .section-chevron {
+    transform: rotate(-45deg);
+}
+
+.section-body {
+    margin-top: 12px;
+}
+
+.panel-section.collapsed .section-body {
+    display: none;
+}
+
+/* Collapsed sections shrink to just their header. */
+.panel-section.collapsed {
     margin-bottom: 12px;
+    padding-bottom: 12px;
 }
 
 .control-row {
@@ -197,6 +383,42 @@ button.secondary {
 button.secondary:hover {
     background: #333;
     border-color: #555;
+}
+
+/* Play/Pause toggle: while playing, show it as a secondary (stop-like) action
+   so the primary green button always means "start". */
+#play-btn.is-playing {
+    background: #2a2a2e;
+    color: #ddd;
+    border: 1px solid #444;
+}
+
+#play-btn.is-playing:hover {
+    background: #333;
+    border-color: #555;
+}
+
+/* Low-emphasis text button for secondary actions (e.g. file import). */
+button.link-btn {
+    background: none;
+    border: none;
+    padding: 2px 0;
+    color: #777;
+    font-weight: 500;
+    font-size: 11px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: #444;
+}
+
+button.link-btn:hover {
+    background: none;
+    color: #00ff88;
+    text-decoration-color: #00ff88;
+}
+
+button.link-btn:active {
+    transform: none;
 }
 
 #speed-value {

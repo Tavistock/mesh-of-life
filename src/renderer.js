@@ -52,6 +52,30 @@ void main() {
 }
 `;
 
+// GPU face picking: render the mesh to a 1x1 target with the face id encoded
+// in RGB (id + 1, so 0 means "no hit"). The CPU then reads back a single pixel
+// instead of raycasting the whole mesh. 24 bits covers ~16M faces.
+const pickingVertexShader = /* glsl */ `
+varying float vFaceId;
+
+void main() {
+    vFaceId = float(gl_VertexID / 3);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const pickingFragmentShader = /* glsl */ `
+varying float vFaceId;
+
+void main() {
+    float id = vFaceId + 1.0;
+    float r = mod(id, 256.0);
+    float g = mod(floor(id / 256.0), 256.0);
+    float b = mod(floor(id / 65536.0), 256.0);
+    gl_FragColor = vec4(r / 255.0, g / 255.0, b / 255.0, 1.0);
+}
+`;
+
 export class MeshRenderer {
     constructor(scene, geometry, bgColor, deadColor, cellColor, ageColor) {
         this.scene = scene;
@@ -69,6 +93,12 @@ export class MeshRenderer {
         this.highlightData = null;
         this.highlightTexture = null;
 
+        // GPU face picking resources (see pickFaceGPU).
+        this.pickingScene = null;
+        this.pickingMaterial = null;
+        this.pickingMesh = null;
+        this.pickingRT = null;
+
         this.buildMesh(geometry);
     }
 
@@ -78,6 +108,13 @@ export class MeshRenderer {
             this.scene.remove(this.mesh);
             this.mesh.geometry.dispose();
             this.mesh.material.dispose();
+        }
+        // The picking mesh shares the geometry, so only its material/scene
+        // entry need cleaning up here (the geometry is disposed above).
+        if (this.pickingMesh) {
+            this.pickingScene.remove(this.pickingMesh);
+            this.pickingMaterial.dispose();
+            this.pickingMesh = null;
         }
 
         // Convert to non-indexed for flat per-face shading. Face id is derived
@@ -119,6 +156,28 @@ export class MeshRenderer {
 
         this.mesh = new THREE.Mesh(nonIndexed, this.material);
         this.scene.add(this.mesh);
+
+        // GPU picking: a second mesh sharing the geometry, rendered to a 1x1
+        // target. The face id is derived from gl_VertexID, so no extra
+        // attribute is needed. DoubleSide matches the visible surface.
+        this.pickingScene = new THREE.Scene();
+        this.pickingScene.background = new THREE.Color(0x000000);
+        this.pickingMaterial = new THREE.ShaderMaterial({
+            vertexShader: pickingVertexShader,
+            fragmentShader: pickingFragmentShader,
+            side: THREE.DoubleSide
+        });
+        this.pickingMesh = new THREE.Mesh(nonIndexed, this.pickingMaterial);
+        this.pickingScene.add(this.pickingMesh);
+        this.pickingRT = new THREE.WebGLRenderTarget(1, 1, {
+            minFilter: THREE.NearestFilter,
+            magFilter: THREE.NearestFilter,
+            format: THREE.RGBAFormat,
+            type: THREE.UnsignedByteType,
+            depthBuffer: true,
+            stencilBuffer: false,
+            generateMipmaps: false
+        });
     }
 
     // Replace the brush highlight set. `faces` is an iterable of face indices
@@ -175,6 +234,41 @@ export class MeshRenderer {
         return this.faceCount;
     }
 
+    // GPU face picking. Renders the mesh to a 1x1 target with the face id
+    // encoded in RGB, then reads that single pixel back. Returns a Promise
+    // resolving to the face index under the cursor, or -1 for a miss.
+    //
+    // PERF: this uses the SYNCHRONOUS readRenderTargetPixels. The async variant
+    // (readRenderTargetPixelsAsync) uses a PIXEL_PACK_BUFFER + fence poll that
+    // wedges the frame loop on some drivers: after a fast orbit/hover, rAF
+    // collapses to ~1 FPS and never recovers (the PIXEL_PACK buffer is left
+    // bound, poisoning later readbacks). A 1x1 readback is cheap enough to do
+    // synchronously, and it keeps the cost independent of face count.
+    pickFaceGPU(clientX, clientY, camera, renderer) {
+        if (!this.pickingMesh || !this.pickingRT) return Promise.resolve(-1);
+        const dom = renderer.domElement;
+        const rect = dom.getBoundingClientRect();
+        const dpr = renderer.getPixelRatio();
+        const px = Math.floor((clientX - rect.left) * dpr);
+        const py = Math.floor((clientY - rect.top) * dpr);
+        if (px < 0 || py < 0 || px >= dom.width || py >= dom.height) {
+            return Promise.resolve(-1);
+        }
+
+        // Render just the pixel under the cursor by offsetting the view.
+        camera.setViewOffset(dom.width, dom.height, px, py, 1, 1);
+        const prevTarget = renderer.getRenderTarget();
+        renderer.setRenderTarget(this.pickingRT);
+        renderer.render(this.pickingScene, camera);
+        const buf = new Uint8Array(4);
+        renderer.readRenderTargetPixels(this.pickingRT, 0, 0, 1, 1, buf);
+        renderer.setRenderTarget(prevTarget);
+        camera.clearViewOffset();
+
+        const id = buf[0] + buf[1] * 256 + buf[2] * 65536;
+        return Promise.resolve(id > 0 ? id - 1 : -1);
+    }
+
     dispose() {
         if (this.mesh) {
             this.scene.remove(this.mesh);
@@ -186,6 +280,15 @@ export class MeshRenderer {
             this.highlightTexture.dispose();
             this.highlightTexture = null;
             this.highlightData = null;
+        }
+        if (this.pickingMesh) {
+            this.pickingScene.remove(this.pickingMesh);
+            this.pickingMaterial.dispose();
+            this.pickingMesh = null;
+        }
+        if (this.pickingRT) {
+            this.pickingRT.dispose();
+            this.pickingRT = null;
         }
     }
 }

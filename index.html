@@ -20,10 +20,16 @@
 <body>
     <canvas id="canvas"></canvas>
     <div id="ui-panel">
-        <div class="panel-section">
-            <h3>Mesh</h3>
+        <div class="panel-section" data-section="mesh">
+            <h3 class="section-header">
+                <button type="button" class="section-toggle" aria-expanded="true" aria-controls="section-mesh">
+                    <span class="section-title">Mesh</span>
+                    <span class="section-chevron" aria-hidden="true"></span>
+                </button>
+            </h3>
+            <div class="section-body" id="section-mesh">
             <div class="control-row">
-                <label for="primitive-select">Primitive:</label>
+                <label for="primitive-select">Model:</label>
                 <select id="primitive-select">
                     <option value="icosahedron">Icosahedron</option>
                     <option value="sphere">Sphere (geodesic)</option>
@@ -42,26 +48,48 @@
                 <input type="range" id="detail-slider" min="0" max="8" value="7">
             </div>
             <div class="control-row">
-                <button id="load-primitive">Load Primitive</button>
+                <button id="load-primitive">Load</button>
             </div>
-            <div class="control-row">
+            <div class="control-row file-row">
                 <input type="file" id="file-input" accept=".glb,.gltf,.obj,.stl,.ply,.fbx" style="display:none;">
-                <button id="file-btn" class="secondary">Choose File</button>
+                <button id="file-btn" class="link-btn">Choose File&hellip;</button>
+            </div>
             </div>
         </div>
 
-        <div class="panel-section">
-            <h3>Simulation</h3>
+        <div class="panel-section" data-section="simulation">
+            <h3 class="section-header">
+                <button type="button" class="section-toggle" aria-expanded="true" aria-controls="section-simulation">
+                    <span class="section-title">Simulation</span>
+                    <span class="section-badge" id="sim-status">Paused</span>
+                    <span class="section-chevron" aria-hidden="true"></span>
+                </button>
+            </h3>
+            <div class="section-body" id="section-simulation">
             <div class="control-row">
                 <button id="play-btn">Play</button>
-                <button id="pause-btn" class="secondary">Pause</button>
                 <button id="step-btn" class="secondary">Step</button>
-                <button id="reset-btn" class="secondary">Reset</button>
             </div>
             <div class="control-row">
-                <label for="speed-slider">Speed: <span id="speed-value">10</span> gen/s</label>
+                <label for="speed-slider">Speed: <span id="speed-value">10</span> steps/s</label>
                 <input type="range" id="speed-slider" min="1" max="60" value="10">
             </div>
+            <div class="control-row">
+                <button id="randomize-btn">Randomize</button>
+                <button id="clear-btn" class="secondary">Clear</button>
+            </div>
+            </div>
+        </div>
+
+        <div class="panel-section" data-section="rules">
+            <h3 class="section-header">
+                <button type="button" class="section-toggle" aria-expanded="true" aria-controls="section-rules">
+                    <span class="section-title">Rules</span>
+                    <span class="section-badge rule-display" id="rule-display">B3/S23</span>
+                    <span class="section-chevron" aria-hidden="true"></span>
+                </button>
+            </h3>
+            <div class="section-body" id="section-rules">
             <div class="control-row preset-row" id="preset-row">
                 <label for="rule-preset">Preset:</label>
                 <select id="rule-preset">
@@ -90,10 +118,6 @@
                 <div class="rule-tooltip" id="rule-tooltip"></div>
             </div>
             <div class="control-row">
-                <label>Rule:</label>
-                <span id="rule-display" class="rule-display">B3/S23</span>
-            </div>
-            <div class="control-row">
                 <label for="rule-hex">Hex:</label>
                 <input type="text" id="rule-hex" class="rule-hex" spellcheck="false"
                        placeholder="B0x08/S0x0C">
@@ -105,37 +129,120 @@
                     <span>Vertex adjacency</span>
                 </label>
             </div>
-            <div class="control-row">
-                <button id="randomize-btn">Randomize</button>
-                <button id="clear-btn" class="secondary">Clear</button>
-            </div>
-            <div class="control-row">
-                <label>Gen: <span id="gen-count">0</span></label>
-                <label>Alive: <span id="alive-count">0</span></label>
             </div>
         </div>
 
-        <div class="panel-section">
-            <h3>Paint</h3>
+        <div class="panel-section" data-section="brush">
+            <h3 class="section-header">
+                <button type="button" class="section-toggle" aria-expanded="true" aria-controls="section-brush">
+                    <span class="section-title">Brush</span>
+                    <span class="section-chevron" aria-hidden="true"></span>
+                </button>
+            </h3>
+            <div class="section-body" id="section-brush">
             <div class="control-row">
-                <label for="brush-size">Brush: <span id="brush-size-value">3</span></label>
+                <label for="brush-size">Size: <span id="brush-size-value">3</span></label>
                 <input type="range" id="brush-size" min="1" max="10" value="3">
             </div>
             <div class="control-row">
                 <label for="brush-density">Density: <span id="brush-density-value">50</span>%</label>
                 <input type="range" id="brush-density" min="1" max="100" value="50">
             </div>
+            </div>
         </div>
 
-        <div class="panel-section">
-            <h3>Image</h3>
-            <div class="control-row">
-                <input type="file" id="image-input" accept="image/*" style="display:none;">
-                <button id="image-btn" class="secondary">Choose Image</button>
+        <div class="panel-section" data-section="colors">
+            <h3 class="section-header">
+                <button type="button" class="section-toggle" aria-expanded="true" aria-controls="section-colors">
+                    <span class="section-title">Colors</span>
+                    <span class="section-chevron" aria-hidden="true"></span>
+                </button>
+            </h3>
+            <div class="section-body" id="section-colors">
+            <div class="color-preview" id="color-preview" aria-hidden="true">
+                <span class="color-preview-seg" id="preview-dead"></span>
+                <span class="color-preview-seg" id="preview-alive"></span>
+                <span class="color-preview-seg" id="preview-age"></span>
+            </div>
+            <div class="color-grid">
+                <label class="color-item" for="bg-color">
+                    <input type="color" id="bg-color" value="#111111">
+                    <span>Background</span>
+                </label>
+                <label class="color-item" for="dead-color">
+                    <input type="color" id="dead-color" value="#1a1a1a">
+                    <span>Dead cell</span>
+                </label>
+                <label class="color-item" for="cell-color">
+                    <input type="color" id="cell-color" value="#00ff88">
+                    <span>Alive cell</span>
+                </label>
+                <label class="color-item" for="age-color">
+                    <input type="color" id="age-color" value="#ffff00">
+                    <span>Age end</span>
+                </label>
             </div>
             <div class="control-row">
-                <label for="qr-text">QR text / URL:</label>
-                <input type="text" id="qr-text" placeholder="https://example.com" spellcheck="false">
+                <button id="randomize-colors-btn" class="secondary">Randomize Colors</button>
+            </div>
+            </div>
+        </div>
+
+        <div class="panel-section" data-section="info">
+            <h3 class="section-header">
+                <button type="button" class="section-toggle" aria-expanded="true" aria-controls="section-info">
+                    <span class="section-title">Info</span>
+                    <span class="section-badge"><span id="fps-count">0</span> FPS</span>
+                    <span class="section-chevron" aria-hidden="true"></span>
+                </button>
+            </h3>
+            <div class="section-body" id="section-info">
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <span class="stat-label">Avg neighbors</span>
+                    <span class="stat-value" id="avg-neighbors">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Max neighbors</span>
+                    <span class="stat-value" id="max-neighbors">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Cells</span>
+                    <span class="stat-value" id="face-count">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Alive</span>
+                    <span class="stat-value" id="alive-count">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Gen</span>
+                    <span class="stat-value" id="gen-count">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Engine</span>
+                    <span class="stat-value" id="engine-mode">GPU</span>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <div class="panel-section" data-section="decals">
+            <h3 class="section-header">
+                <button type="button" class="section-toggle" aria-expanded="true" aria-controls="section-decals">
+                    <span class="section-title">Decals</span>
+                    <span class="section-chevron" aria-hidden="true"></span>
+                </button>
+            </h3>
+            <div class="section-body" id="section-decals">
+            <div class="subsection-label">Image</div>
+            <div class="control-row">
+                <input type="file" id="image-input" accept="image/*" style="display:none;">
+                <button id="image-btn" class="secondary">Upload Image</button>
+            </div>
+            <div class="subsection-label">QR code</div>
+            <div class="control-row">
+                <label for="qr-text">Text / URL:</label>
+                <input type="text" id="qr-text" placeholder="(blank = current URL)" spellcheck="false">
             </div>
             <div class="control-row">
                 <button id="qr-generate" class="secondary">Generate QR</button>
@@ -145,6 +252,7 @@
                 <canvas id="image-preview" width="248" height="248"></canvas>
                 <div class="image-preview-hint" id="image-preview-hint">Choose an image to preview</div>
             </div>
+            <div class="subsection-label">Placement</div>
             <div class="control-row">
                 <label for="image-projection">Projection:</label>
                 <select id="image-projection">
@@ -192,48 +300,13 @@
             <div class="control-row">
                 <button id="image-apply" class="secondary" disabled>Apply to Mesh</button>
             </div>
+            </div>
         </div>
+    </div>
 
-        <div class="panel-section">
-            <h3>Colors</h3>
-            <div class="color-grid">
-                <label class="color-item" for="bg-color">
-                    <input type="color" id="bg-color" value="#111111">
-                    <span>Background</span>
-                </label>
-                <label class="color-item" for="dead-color">
-                    <input type="color" id="dead-color" value="#1a1a1a">
-                    <span>Dead cell</span>
-                </label>
-                <label class="color-item" for="cell-color">
-                    <input type="color" id="cell-color" value="#00ff88">
-                    <span>Alive cell</span>
-                </label>
-                <label class="color-item" for="age-color">
-                    <input type="color" id="age-color" value="#ffff00">
-                    <span>Age end</span>
-                </label>
-            </div>
-            <div class="control-row" style="margin-top: 10px;">
-                <button id="randomize-colors-btn" class="secondary">Randomize Colors</button>
-            </div>
-        </div>
-
-        <div class="panel-section">
-            <h3>Info</h3>
-            <div class="control-row">
-                <label>Faces: <span id="face-count">0</span></label>
-            </div>
-            <div class="control-row">
-                <label>Avg neighbors: <span id="avg-neighbors">0</span></label>
-            </div>
-            <div class="control-row">
-                <label>FPS: <span id="fps-count">0</span></label>
-            </div>
-            <div class="control-row">
-                <label>Engine: <span id="engine-mode">GPU</span></label>
-            </div>
-        </div>
+    <div id="loading-overlay" class="hidden" aria-hidden="true">
+        <div class="loading-spinner"></div>
+        <div class="loading-label" id="loading-label">Loading&hellip;</div>
     </div>
 
     <script type="module" src="src/main.js"></script>

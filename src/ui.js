@@ -33,8 +33,63 @@ function populateParametricOptions() {
     select.insertBefore(group, testGroup);
 }
 
+// Turn each .panel-section into a collapsible accordion. The open/closed state
+// is remembered per section in localStorage so the panel keeps the user's
+// preferred layout across reloads. Sections without a data-section key (or
+// with storage unavailable) simply default to open.
+const COLLAPSE_STORAGE_KEY = 'mesh-of-life:collapsed-sections';
+
+function readCollapsedSections() {
+    try {
+        const raw = localStorage.getItem(COLLAPSE_STORAGE_KEY);
+        return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+        return new Set();
+    }
+}
+
+function writeCollapsedSections(collapsed) {
+    try {
+        localStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify([...collapsed]));
+    } catch {
+        // Storage may be unavailable (private mode); collapsing still works
+        // for the session, it just won't persist.
+    }
+}
+
+function setupCollapsibleSections() {
+    const collapsed = readCollapsedSections();
+
+    document.querySelectorAll('.panel-section').forEach((section) => {
+        const toggle = section.querySelector('.section-toggle');
+        if (!toggle) return;
+        const key = section.dataset.section;
+
+        const setCollapsed = (isCollapsed) => {
+            section.classList.toggle('collapsed', isCollapsed);
+            toggle.setAttribute('aria-expanded', String(!isCollapsed));
+        };
+
+        // Restore persisted state (default open).
+        setCollapsed(key ? collapsed.has(key) : false);
+
+        toggle.addEventListener('click', () => {
+            const isCollapsed = !section.classList.contains('collapsed');
+            setCollapsed(isCollapsed);
+            if (!key) return;
+            if (isCollapsed) {
+                collapsed.add(key);
+            } else {
+                collapsed.delete(key);
+            }
+            writeCollapsedSections(collapsed);
+        });
+    });
+}
+
 export function setupUI(hooks) {
     populateParametricOptions();
+    setupCollapsibleSections();
 
     const {
         loadPrimitive,
@@ -119,11 +174,17 @@ export function setupUI(hooks) {
         }
     });
 
-    // Simulation controls
-    document.getElementById('play-btn').addEventListener('click', play);
-    document.getElementById('pause-btn').addEventListener('click', pause);
+    // Simulation controls: a single Play/Pause toggle plus Step. The toggle
+    // tracks the engine's playing state (kept in sync via setPlaying below).
+    let playing = false;
+    document.getElementById('play-btn').addEventListener('click', () => {
+        if (playing) {
+            pause();
+        } else {
+            play();
+        }
+    });
     document.getElementById('step-btn').addEventListener('click', step);
-    document.getElementById('reset-btn').addEventListener('click', reset);
 
     const speedSlider = document.getElementById('speed-slider');
     const speedValue = document.getElementById('speed-value');
@@ -371,12 +432,38 @@ export function setupUI(hooks) {
     document.getElementById('randomize-btn').addEventListener('click', randomize);
     document.getElementById('clear-btn').addEventListener('click', clear);
 
-    // Color pickers
+    // Color pickers. The preview strip mirrors the current palette, so it is
+    // refreshed after every change (including the randomizer, which writes the
+    // input values directly and therefore fires no 'input' event).
+    const colorPreview = {
+        dead: document.getElementById('preview-dead'),
+        alive: document.getElementById('preview-alive'),
+        age: document.getElementById('preview-age')
+    };
+    function updateColorPreview() {
+        colorPreview.dead.style.background = document.getElementById('dead-color').value;
+        colorPreview.alive.style.background = document.getElementById('cell-color').value;
+        colorPreview.age.style.background = document.getElementById('age-color').value;
+    }
+
     document.getElementById('bg-color').addEventListener('input', (e) => setBgColor(e.target.value));
-    document.getElementById('dead-color').addEventListener('input', (e) => setDeadColor(e.target.value));
-    document.getElementById('cell-color').addEventListener('input', (e) => setCellColor(e.target.value));
-    document.getElementById('age-color').addEventListener('input', (e) => setAgeColor(e.target.value));
-    document.getElementById('randomize-colors-btn').addEventListener('click', randomizeColors);
+    document.getElementById('dead-color').addEventListener('input', (e) => {
+        setDeadColor(e.target.value);
+        updateColorPreview();
+    });
+    document.getElementById('cell-color').addEventListener('input', (e) => {
+        setCellColor(e.target.value);
+        updateColorPreview();
+    });
+    document.getElementById('age-color').addEventListener('input', (e) => {
+        setAgeColor(e.target.value);
+        updateColorPreview();
+    });
+    document.getElementById('randomize-colors-btn').addEventListener('click', () => {
+        randomizeColors();
+        updateColorPreview();
+    });
+    updateColorPreview();
 
     // Canvas click for cell toggle. A click that follows a drag (e.g. an orbit
     // gesture) is suppressed so dragging never paints or toggles a cell.
@@ -674,10 +761,9 @@ export function setupUI(hooks) {
         // copy, Ctrl+R to reload, etc.) are not hijacked by the game controls.
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         switch (e.key) {
-            case ' ': e.preventDefault(); play(); break;
+            case ' ': e.preventDefault(); if (playing) pause(); else play(); break;
             case 'p': pause(); break;
             case 's': step(); break;
-            case 'r': reset(); break;
             case 'R': randomize(); break;
             case 'c': clear(); break;
         }
@@ -696,6 +782,7 @@ export function setupUI(hooks) {
         // so rules referencing higher counts stay visible and editable.
         setMaxNeighbors: (max) => {
             const newMax = Math.max(8, max);
+            document.getElementById('max-neighbors').textContent = max;
             if (newMax === maxNeighbors) return;
             maxNeighbors = newMax;
             buildRuleGrid();
@@ -724,10 +811,22 @@ export function setupUI(hooks) {
                 syncGridFromRule();
                 updateRuleDisplay();
             }
+            updateColorPreview();
         },
         setPlaying: (isPlaying) => {
-            document.getElementById('play-btn').disabled = isPlaying;
-            document.getElementById('pause-btn').disabled = !isPlaying;
+            playing = isPlaying;
+            const playBtn = document.getElementById('play-btn');
+            playBtn.textContent = isPlaying ? 'Pause' : 'Play';
+            playBtn.classList.toggle('is-playing', isPlaying);
+            document.getElementById('sim-status').textContent = isPlaying ? 'Playing' : 'Paused';
+        },
+        // Toggle the full-screen loading overlay shown while a mesh is built.
+        setLoading: (isLoading, label) => {
+            const overlay = document.getElementById('loading-overlay');
+            if (!overlay) return;
+            if (label) document.getElementById('loading-label').textContent = label;
+            overlay.classList.toggle('hidden', !isLoading);
+            overlay.setAttribute('aria-hidden', String(!isLoading));
         },
         // Show a decoded image in the transform preview.
         setPreviewImage: (img) => setPreviewImage(img)
