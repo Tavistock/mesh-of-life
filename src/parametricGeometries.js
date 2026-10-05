@@ -1,4 +1,15 @@
 
+/*
+ * Parametric surface definitions.
+ *
+ * Adapted from "Interactive Vector Calculus — Parametric Surfaces Gallery"
+ * by Juan Carlos Ponce Campuzano (jcponce) / vector-calculus
+ *   https://github.com/vector-calculus/vector-calculus.github.io
+ * Licensed under CC BY-NC-SA 4.0
+ *   https://creativecommons.org/licenses/by-nc-sa/4.0/
+ *
+ * See CREDITS.md for full attribution.
+ */
 
 import { ParametricGeometry } from 'three/addons/geometries/ParametricGeometry.js';
 

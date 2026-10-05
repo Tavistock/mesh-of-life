@@ -219,6 +219,9 @@ function applyRandomColors() {
         meshRenderer.setCellColor(palette.cell);
         meshRenderer.setAgeColor(palette.age);
     }
+    // Writing the input values above fires no 'input' event, so refresh the
+    // preview strip explicitly to keep it in sync with the random palette.
+    ui.updateColorPreview();
     updateColors();
 }
 

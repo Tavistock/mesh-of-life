@@ -1,6 +1,6 @@
 # Mesh of Life
 
-**Conway's Game of Life running on the faces of a 3D mesh.**
+[**Conway's Game of Life running on the faces of a 3D mesh.**](https://tavistock.github.io/mesh-of-life)
 
 Every triangle in the mesh is one cell. Neighbors are determined by shared edges
 (or shared vertices), so Life evolves across the surface of spheres, tori,
@@ -53,3 +53,14 @@ Then open <http://localhost:8080>.
 - A modern browser with **WebGL2**. The GPU engine additionally needs
   `EXT_color_buffer_float`; if it's unavailable the app automatically falls back
   to the CPU engine. Append `?cpu=1` to force the CPU engine.
+
+## License & credits
+
+Mesh of Life is licensed under the
+[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+license](https://creativecommons.org/licenses/by-nc-sa/4.0/) (CC BY-NC-SA 4.0).
+
+The parametric surfaces are adapted from
+[Interactive Vector Calculus](https://github.com/vector-calculus/vector-calculus.github.io)
+by Juan Carlos Ponce Campuzano (CC BY-NC-SA 4.0). See [CREDITS.md](CREDITS.md)
+for full attribution of surfaces, test models, and libraries.

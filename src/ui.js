@@ -877,6 +877,10 @@ export function setupUI(hooks) {
             overlay.setAttribute('aria-hidden', String(!isLoading));
         },
         // Show a decoded image in the transform preview.
-        setPreviewImage: (img) => setPreviewImage(img)
+        setPreviewImage: (img) => setPreviewImage(img),
+        // Refresh the palette preview strip from the current color inputs.
+        // Needed after code writes the input values directly (e.g. the startup
+        // random palette), which fires no 'input' event.
+        updateColorPreview: () => updateColorPreview()
     };
 }
