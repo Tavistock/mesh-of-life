@@ -41,6 +41,7 @@ let lastTick = 0;
 let accum = 0;
 let useVertexAdjacency = true;
 let cachedAvgNeighbors = 0; // computed once per mesh load; O(faceCount) to recompute
+let hasAutoStarted = false; // auto-play the simulation on the first mesh load only
 
 // Paint brush state
 let brushSize = 3;        // brush size in cells (1 = just the clicked face)
@@ -352,9 +353,14 @@ function loadMesh(geometry) {
         lifeEngine.getAliveCount()
     );
 
-    // Reset simulation state
-    isPlaying = false;
-    ui.setPlaying(false);
+    // Reset simulation state. Auto-play on the first mesh load so the
+    // simulation is running as soon as the app opens; later mesh changes
+    // (primitive/detail/adjacency) keep the current play/pause state.
+    if (!hasAutoStarted) {
+        hasAutoStarted = true;
+        isPlaying = true;
+        ui.setPlaying(true);
+    }
     lastTick = performance.now();
     accum = 0;
     lastBrushFace = -1;
@@ -380,6 +386,7 @@ function updateColors() {
 function tickSimulation() {
     if (!lifeEngine) return;
     lifeEngine.step();
+    updateColors();
 }
 
 // Advance the simulation by up to maxTicks generations, then refresh colors and

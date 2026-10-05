@@ -87,9 +87,82 @@ function setupCollapsibleSections() {
     });
 }
 
+// Show/hide the whole control panel. The toggle button stays visible so the
+// panel can always be brought back, and the state is persisted like the
+// collapsed sections above.
+const UI_VISIBLE_STORAGE_KEY = 'mesh-of-life:ui-visible';
+
+function setupUiVisibility() {
+    const panel = document.getElementById('ui-panel');
+    const toggle = document.getElementById('ui-toggle');
+    if (!panel || !toggle) return { toggle: () => {}, isVisible: () => true };
+
+    let visible = true;
+    try {
+        visible = localStorage.getItem(UI_VISIBLE_STORAGE_KEY) !== 'false';
+    } catch {
+        // Storage unavailable; default to visible.
+    }
+
+    const apply = (isVisible) => {
+        visible = isVisible;
+        panel.classList.toggle('ui-hidden', !isVisible);
+        panel.setAttribute('aria-hidden', String(!isVisible));
+        toggle.setAttribute('aria-expanded', String(isVisible));
+        toggle.setAttribute('aria-label', isVisible ? 'Hide UI' : 'Show UI');
+        toggle.title = isVisible ? 'Hide UI (H)' : 'Show UI (H)';
+        try {
+            localStorage.setItem(UI_VISIBLE_STORAGE_KEY, String(isVisible));
+        } catch {
+            // Ignore; visibility still works for the session.
+        }
+    };
+
+    apply(visible);
+    toggle.addEventListener('click', () => apply(!visible));
+
+    return { toggle: () => apply(!visible), isVisible: () => visible };
+}
+
+// Full-screen "about" panel explaining the app and listing the keyboard
+// shortcuts. Opened from the info button next to the UI toggle, or with `I`.
+function setupInfoOverlay() {
+    const overlay = document.getElementById('info-overlay');
+    const toggle = document.getElementById('info-toggle');
+    const closeBtn = document.getElementById('info-close');
+    if (!overlay || !toggle) {
+        return { open: () => {}, close: () => {}, toggle: () => {}, isOpen: () => false };
+    }
+
+    let open = false;
+
+    const apply = (isOpen) => {
+        open = isOpen;
+        overlay.classList.toggle('hidden', !isOpen);
+        overlay.setAttribute('aria-hidden', String(!isOpen));
+        toggle.setAttribute('aria-expanded', String(isOpen));
+    };
+
+    toggle.addEventListener('click', () => apply(!open));
+    if (closeBtn) closeBtn.addEventListener('click', () => apply(false));
+    // Clicking the dimmed backdrop (but not the card itself) closes the panel.
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) apply(false);
+    });
+
+    return {
+        open: () => apply(true),
+        close: () => apply(false),
+        toggle: () => apply(!open),
+        isOpen: () => open,
+    };
+}
+
 export function setupUI(hooks) {
     populateParametricOptions();
     setupCollapsibleSections();
+    const uiVisibility = setupUiVisibility();
+    const infoOverlay = setupInfoOverlay();
 
     const {
         loadPrimitive,
@@ -738,6 +811,9 @@ export function setupUI(hooks) {
             case 's': step(); break;
             case 'R': randomize(); break;
             case 'c': clear(); break;
+            case 'h': uiVisibility.toggle(); break;
+            case 'i': infoOverlay.toggle(); break;
+            case 'Escape': infoOverlay.close(); break;
         }
     });
 

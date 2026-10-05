@@ -99,10 +99,10 @@ body {
 
 #ui-panel {
     position: fixed;
-    top: 16px;
+    top: 60px;
     right: 16px;
     width: 280px;
-    max-height: calc(100vh - 32px);
+    max-height: calc(100vh - 76px);
     overflow-y: auto;
     background: rgba(20, 20, 24, 0.95);
     border: 1px solid #333;
@@ -111,6 +111,230 @@ body {
     backdrop-filter: blur(8px);
     z-index: 100;
     font-size: 13px;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+#ui-panel.ui-hidden {
+    transform: translateX(calc(100% + 24px));
+    opacity: 0;
+    pointer-events: none;
+}
+
+#ui-toggle {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 101;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 20, 24, 0.95);
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #ddd;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+}
+
+#ui-toggle:hover {
+    border-color: #555;
+    color: #fff;
+}
+
+.ui-toggle-icon,
+.ui-toggle-icon::before,
+.ui-toggle-icon::after {
+    display: block;
+    width: 16px;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+}
+
+.ui-toggle-icon {
+    position: relative;
+}
+
+.ui-toggle-icon::before,
+.ui-toggle-icon::after {
+    content: "";
+    position: absolute;
+    left: 0;
+}
+
+.ui-toggle-icon::before {
+    top: -5px;
+}
+
+.ui-toggle-icon::after {
+    top: 5px;
+}
+
+#info-toggle {
+    position: fixed;
+    top: 16px;
+    right: 60px;
+    z-index: 101;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 20, 24, 0.95);
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #ddd;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+}
+
+#info-toggle:hover {
+    border-color: #555;
+    color: #fff;
+}
+
+.info-toggle-icon {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-style: italic;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+#info-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(3px);
+    opacity: 1;
+    transition: opacity 0.15s ease;
+}
+
+#info-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.info-card {
+    position: relative;
+    width: min(560px, 100%);
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    background: rgba(20, 20, 24, 0.98);
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 28px 28px 24px;
+    color: #ddd;
+    font-size: 13px;
+    line-height: 1.55;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.info-card h2 {
+    margin: 0 0 12px;
+    font-size: 20px;
+    color: #fff;
+}
+
+.info-card h3 {
+    margin: 22px 0 10px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #8fd6b0;
+}
+
+.info-lede {
+    margin: 0;
+    color: #bbb;
+}
+
+.info-list {
+    margin: 0;
+    padding-left: 18px;
+    color: #bbb;
+}
+
+.info-list li {
+    margin-bottom: 6px;
+}
+
+.info-card code {
+    background: #2a2a2e;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 12px;
+    color: #e0e0e0;
+}
+
+.info-keys {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 8px 20px;
+}
+
+.info-key {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.info-key kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    padding: 3px 7px;
+    background: #2a2a2e;
+    border: 1px solid #444;
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    font-family: inherit;
+    font-size: 11px;
+    color: #fff;
+}
+
+.info-key span {
+    color: #bbb;
+}
+
+.info-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #999;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.info-close:hover {
+    color: #fff;
+    border-color: #444;
+}
+
+.info-foot {
+    margin: 22px 0 0;
+    padding-top: 14px;
+    border-top: 1px solid #2a2a2e;
+    color: #888;
+    font-size: 12px;
 }
 
 .panel-section {
@@ -687,5 +911,9 @@ button.link-btn:active {
         max-height: 50vh;
         border-radius: 12px 12px 0 0;
         border-bottom: none;
+    }
+
+    #ui-panel.ui-hidden {
+        transform: translateY(calc(100% + 24px));
     }
 }

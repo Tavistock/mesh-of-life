@@ -291,6 +291,53 @@
         </div>
     </div>
 
+    <button id="ui-toggle" type="button" aria-label="Hide UI" aria-expanded="true" title="Hide UI (H)">
+        <span class="ui-toggle-icon" aria-hidden="true"></span>
+    </button>
+
+    <button id="info-toggle" type="button" aria-label="About &amp; shortcuts" aria-expanded="false" title="About &amp; shortcuts (I)">
+        <span class="info-toggle-icon" aria-hidden="true">i</span>
+    </button>
+
+    <div id="info-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="info-title" aria-hidden="true">
+        <div class="info-card">
+            <button id="info-close" type="button" class="info-close" aria-label="Close">&times;</button>
+            <h2 id="info-title">Mesh of Life</h2>
+            <p class="info-lede">
+                Conway's Game of Life running on the faces of a 3D mesh. Every
+                triangle is one cell, and neighbors are determined by shared
+                edges or vertices &mdash; so Life evolves across the surface of
+                spheres, tori, Klein bottles, the Stanford Bunny, and any model
+                you drag in.
+            </p>
+
+            <h3>Getting around</h3>
+            <ul class="info-list">
+                <li><strong>Drag</strong> to orbit, <strong>scroll</strong> to zoom, <strong>right-drag</strong> to pan.</li>
+                <li><strong>Click or drag on the mesh</strong> to paint cells with the brush.</li>
+                <li><strong>Drag &amp; drop</strong> a <code>.glb</code>, <code>.gltf</code>, <code>.obj</code>, <code>.stl</code>, <code>.ply</code>, or <code>.fbx</code> file to load it.</li>
+                <li>Use the <strong>Decals</strong> panel to stamp an image or QR code onto the mesh.</li>
+            </ul>
+
+            <h3>Keyboard shortcuts</h3>
+            <div class="info-keys">
+                <div class="info-key"><kbd>Space</kbd><span>Play / pause</span></div>
+                <div class="info-key"><kbd>P</kbd><span>Pause</span></div>
+                <div class="info-key"><kbd>S</kbd><span>Step one generation</span></div>
+                <div class="info-key"><kbd>R</kbd><span>Randomize cells</span></div>
+                <div class="info-key"><kbd>C</kbd><span>Clear cells</span></div>
+                <div class="info-key"><kbd>H</kbd><span>Hide / show the UI</span></div>
+                <div class="info-key"><kbd>I</kbd><span>Toggle this panel</span></div>
+                <div class="info-key"><kbd>Esc</kbd><span>Close this panel</span></div>
+            </div>
+
+            <p class="info-foot">
+                Shareable URLs encode the mesh, detail, and rule in the query
+                string. Append <code>?cpu=1</code> to force the CPU engine.
+            </p>
+        </div>
+    </div>
+
     <div id="loading-overlay" class="hidden" aria-hidden="true">
         <div class="loading-spinner"></div>
         <div class="loading-label" id="loading-label">Loading&hellip;</div>
