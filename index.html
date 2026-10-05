@@ -110,17 +110,11 @@
                     <option value="B3678/S235678">Stains (B3678/S235678)</option>
                     <option value="B5678/S45678">Vote (B5678/S45678)</option>
                     <option value="B234/S">Serviettes (B234/S)</option>
-                    <option value="B567/S9ABCDEFGHI">Streptococcus (B567/S9ABCDEFGHI)</option>
                     <option value="B345/S456">Anneal (B345/S456)</option>
                     <option value="B345/S45678">Life 34 (B345/S45678)</option>
                     <option value="B345/S4567">Life 34 variant (B345/S4567)</option>
                 </select>
                 <div class="rule-tooltip" id="rule-tooltip"></div>
-            </div>
-            <div class="control-row">
-                <label for="rule-hex">Hex:</label>
-                <input type="text" id="rule-hex" class="rule-hex" spellcheck="false"
-                       placeholder="B0x08/S0x0C">
             </div>
             <div class="rule-grid" id="rule-grid"></div>
             <div class="control-row">
@@ -234,19 +228,16 @@
                 </button>
             </h3>
             <div class="section-body" id="section-decals">
-            <div class="subsection-label">Image</div>
-            <div class="control-row">
-                <input type="file" id="image-input" accept="image/*" style="display:none;">
-                <button id="image-btn" class="secondary">Upload Image</button>
-            </div>
             <div class="subsection-label">QR code</div>
             <div class="control-row">
-                <label for="qr-text">Text / URL:</label>
-                <input type="text" id="qr-text" placeholder="(blank = current URL)" spellcheck="false">
+                <input type="text" id="qr-text" placeholder="Blank = current URL" spellcheck="false">
             </div>
             <div class="control-row">
-                <button id="qr-generate" class="secondary">Generate QR</button>
-                <button id="qr-current" class="secondary">Use Current URL</button>
+                <button id="qr-generate">Generate QR</button>
+            </div>
+            <div class="control-row">
+                <input type="file" id="image-input" accept="image/*" style="display:none;">
+                <button id="image-btn" class="link-btn">Upload Image&hellip;</button>
             </div>
             <div class="image-preview-wrap">
                 <canvas id="image-preview" width="248" height="248"></canvas>
@@ -279,26 +270,22 @@
                 <input type="range" id="image-offset-y" min="-100" max="100" value="0">
             </div>
             <div class="control-row">
-                <button id="image-reset" class="secondary">Reset Transform</button>
-            </div>
-            <div class="control-row">
                 <label for="image-threshold">Threshold: <span id="image-threshold-value">50</span>%</label>
                 <input type="range" id="image-threshold" min="1" max="100" value="50">
             </div>
-            <div class="control-row">
-                <label class="rule-radio" for="image-invert">
-                    <input type="checkbox" id="image-invert">
-                    <span>Invert (dark = alive)</span>
-                </label>
+            <div class="control-row toggle-row">
+                <label for="image-invert">Invert (dark = alive)</label>
+                <input type="checkbox" id="image-invert" class="toggle-switch">
+            </div>
+            <div class="control-row toggle-row">
+                <label for="image-live">Live preview on mesh</label>
+                <input type="checkbox" id="image-live" class="toggle-switch">
             </div>
             <div class="control-row">
-                <label class="rule-radio" for="image-live">
-                    <input type="checkbox" id="image-live">
-                    <span>Live preview on mesh</span>
-                </label>
+                <button id="image-reset" class="secondary">Reset Transform</button>
             </div>
             <div class="control-row">
-                <button id="image-apply" class="secondary" disabled>Apply to Mesh</button>
+                <button id="image-apply" disabled>Apply to Mesh</button>
             </div>
             </div>
         </div>

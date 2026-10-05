@@ -23,8 +23,9 @@ uniform vec3 deadColor;
 uniform vec3 cellColor;
 uniform vec3 ageColor;
 uniform float maxAge;
-uniform sampler2D highlightTex;   // 1 texel per face, r = brush flag
-uniform float highlightStrength;  // how much to brighten highlighted faces
+uniform sampler2D highlightTex;   // 1 texel per face: r=brush, g=preview alive, b=preview dead
+uniform float highlightStrength;  // how much to brighten brush-highlighted faces
+uniform float previewStrength;    // how much to lighten/darken previewed faces
 
 varying float vFaceId;
 
@@ -43,10 +44,18 @@ void main() {
     vec3 col = mix(deadColor, aliveCol, alive);
 
     // Brush highlight (hover): brighten every face in the brush toward white,
-    // toward white, keeping its current color. highlightStrength is 0 when no
-    // brush is active, so this is a no-op outside paint mode.
+    // keeping its current color. highlightStrength is 0 when no brush is
+    // active, so this is a no-op outside paint mode.
     float hl = texture2D(highlightTex, uv).r;
     col = mix(col, vec3(1.0), hl * highlightStrength);
+
+    // Image live preview: a non-destructive overlay that shows where the
+    // image would land. Faces the image would turn alive are lightened toward
+    // white; faces it would turn dead are darkened toward black. The sim state
+    // is never touched, so this is purely a visual hint.
+    vec4 pv = texture2D(highlightTex, uv);
+    col = mix(col, vec3(1.0), pv.g * previewStrength);
+    col = mix(col, vec3(0.0), pv.b * previewStrength);
 
     gl_FragColor = vec4(col, 1.0);
 }
@@ -135,7 +144,8 @@ export class MeshRenderer {
                 ageColor: { value: new THREE.Color(this.ageColor) },
                 maxAge: { value: 100 },
                 highlightTex: { value: null },
-                highlightStrength: { value: 0.35 }
+                highlightStrength: { value: 0.35 },
+                previewStrength: { value: 0.35 }
             }
         });
 
@@ -181,10 +191,11 @@ export class MeshRenderer {
     }
 
     // Replace the brush highlight set. `faces` is an iterable of face indices
-    // to brighten; pass null/empty to clear. Uploads the whole small texture.
+    // to brighten; pass null/empty to clear. Only the red channel is touched so
+    // the image preview overlay (green/blue) is preserved.
     setBrushHighlight(faces) {
         if (!this.highlightData) return;
-        this.highlightData.fill(0);
+        for (let i = 0; i < this.faceCount; i++) this.highlightData[i * 4] = 0;
         if (faces) {
             for (const f of faces) {
                 if (f >= 0 && f < this.faceCount) this.highlightData[f * 4] = 255;
@@ -195,8 +206,32 @@ export class MeshRenderer {
 
     clearBrushHighlight() {
         if (!this.highlightData) return;
-        this.highlightData.fill(0);
+        for (let i = 0; i < this.faceCount; i++) this.highlightData[i * 4] = 0;
         this.highlightTexture.needsUpdate = true;
+    }
+
+    // Replace the image live-preview overlay. `alive`/`mask` are the arrays
+    // returned by rasterize(): masked faces the image would turn alive are
+    // flagged green (lighten), masked faces it would turn dead are flagged
+    // blue (darken). Pass null to clear. Only the green/blue channels are
+    // touched so the brush highlight (red) is preserved.
+    setPreviewHighlight(alive, mask) {
+        if (!this.highlightData) return;
+        for (let i = 0; i < this.faceCount; i++) {
+            this.highlightData[i * 4 + 1] = 0;
+            this.highlightData[i * 4 + 2] = 0;
+        }
+        if (alive) {
+            for (let f = 0; f < this.faceCount; f++) {
+                if (mask && !mask[f]) continue;
+                this.highlightData[f * 4 + (alive[f] ? 1 : 2)] = 255;
+            }
+        }
+        this.highlightTexture.needsUpdate = true;
+    }
+
+    clearPreviewHighlight() {
+        this.setPreviewHighlight(null, null);
     }
 
     // Bind the GPU engine's current state texture. Called every frame so the

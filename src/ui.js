@@ -1,6 +1,6 @@
 // UI wiring: controls, drag & drop, event handlers
 
-import { parseRule, ruleToStrings, formatClassic, isHexRule } from './ruleEncoding.js';
+import { parseRule, ruleToStrings, formatClassic } from './ruleEncoding.js';
 import { PARAMETRIC_GEOMETRIES } from './parametricGeometries.js';
 import QRCode from 'qrcode';
 
@@ -202,12 +202,9 @@ export function setupUI(hooks) {
     let currentRule = { birth: new Set([3]), survive: new Set([2, 3]) };
     let maxNeighbors = 8;
 
-    // Notify the host whenever a URL-relevant setting changes. Also lets the
-    // QR field follow the URL once it's wired up (see qrSync below).
-    let qrSync = null;
+    // Notify the host whenever a URL-relevant setting changes.
     function notifyStateChange() {
         if (onStateChange) onStateChange();
-        if (qrSync) qrSync();
     }
 
     // Descriptions for each preset rule
@@ -370,7 +367,6 @@ export function setupUI(hooks) {
     function updateRuleDisplay() {
         const { classic, hex } = ruleToStrings(currentRule);
         ruleDisplay.textContent = `${hex}`;
-        hexInput.value = hex;
         setRule(hex);
 
         // Keep the preset dropdown in sync (falls back to Custom). Preset
@@ -388,23 +384,6 @@ export function setupUI(hooks) {
         const value = e.target.value;
         if (value === 'custom') return;
         currentRule = parseRule(value);
-        buildRuleGrid();
-        syncGridFromRule();
-        updateRuleDisplay();
-    });
-
-    // Hex rule input: accept a bit-packed rule like "B0x08/S0x0C". Invalid
-    // input is rejected (highlighted) and the last good rule is kept.
-    const hexInput = document.getElementById('rule-hex');
-    hexInput.value = ruleToStrings(currentRule).hex;
-    hexInput.addEventListener('change', () => {
-        const text = hexInput.value.trim();
-        if (!isHexRule(text)) {
-            hexInput.classList.add('invalid');
-            return;
-        }
-        hexInput.classList.remove('invalid');
-        currentRule = parseRule(text);
         buildRuleGrid();
         syncGridFromRule();
         updateRuleDisplay();
@@ -598,6 +577,9 @@ export function setupUI(hooks) {
     function setPreviewImage(img) {
         previewImage = img;
         previewHint.style.display = img ? 'none' : 'flex';
+        // A freshly loaded image (upload or QR) should show its on-mesh
+        // preview immediately, so turn live preview on.
+        if (img) imageLive.checked = true;
         drawPreview();
         notifyImagePreview();
     }
@@ -690,23 +672,11 @@ export function setupUI(hooks) {
     // through the same image pipeline as a chosen file.
     const qrText = document.getElementById('qr-text');
     const qrGenerateBtn = document.getElementById('qr-generate');
-    const qrCurrentBtn = document.getElementById('qr-current');
-
-    // Default the QR text to the current page URL so the code links back to
-    // this exact setup (the URL already encodes primitive/detail/rule).
-    // Once the user types their own text we stop auto-syncing.
-    let qrUserEdited = false;
-    function setQrToCurrentUrl(force = false) {
-        if (force || !qrUserEdited) qrText.value = location.href;
-    }
-    qrText.addEventListener('input', () => { qrUserEdited = true; });
-    setQrToCurrentUrl();
-    // Keep the QR field following the page URL as settings change, until the
-    // user types their own text.
-    qrSync = () => setQrToCurrentUrl();
 
     async function generateQr() {
-        const text = qrText.value.trim();
+        // Blank text encodes the current page URL (which already carries the
+        // primitive/detail/rule), so the code links back to this exact setup.
+        const text = qrText.value.trim() || location.href;
         if (!text) return;
         try {
             const dataUrl = await QRCode.toDataURL(text, {
@@ -729,10 +699,6 @@ export function setupUI(hooks) {
     }
 
     qrGenerateBtn.addEventListener('click', generateQr);
-    qrCurrentBtn.addEventListener('click', () => {
-        setQrToCurrentUrl(true);
-        generateQr();
-    });
     imageThreshold.addEventListener('input', () => {
         imageThresholdValue.textContent = imageThreshold.value;
         notifyImagePreview();
@@ -749,6 +715,12 @@ export function setupUI(hooks) {
     });
     imageApplyBtn.addEventListener('click', () => {
         applyImage(imageOptions());
+        // Applying commits the image, so turn the live preview off and clear
+        // its overlay (otherwise the preview tint would linger on top).
+        if (imageLive.checked) {
+            imageLive.checked = false;
+            if (onImagePreview) onImagePreview(null);
+        }
     });
 
     syncTransformUI();

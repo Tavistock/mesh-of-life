@@ -54,7 +54,6 @@ let lastCamQuat = new THREE.Quaternion();
 
 // Image rasterizer state
 let sourceImageData = null;   // downscaled ImageData for sampling
-let previewSnapshot = null;   // pre-preview engine state (live preview only)
 
 // Shared handler for a freshly decoded image (from a file or a QR data URL):
 // store the sampling data and show it in the transform preview.
@@ -185,33 +184,21 @@ const ui = setupUI({
         if (!sourceImageData || !currentGeometry || !lifeEngine) return;
         const { alive, mask } = rasterize(currentGeometry, sourceImageData, options);
         lifeEngine.setCells(alive, mask);
-        previewSnapshot = null; // committed; nothing to restore
         updateColors();
     },
-    // Live preview: show the rasterized result on the mesh without committing.
-    // The first call snapshots the current state so it can be restored when
-    // live preview is turned off. Passing null restores that snapshot.
+    // Live preview: show where the image would land WITHOUT touching the
+    // simulation. Masked faces the image would turn alive are lightened and
+    // faces it would turn dead are darkened, via the renderer's overlay
+    // texture. Passing null clears the overlay.
     onImagePreview: (options) => {
-        if (!lifeEngine) return;
+        if (!meshRenderer) return;
         if (!options) {
-            if (previewSnapshot) {
-                lifeEngine.restore(previewSnapshot);
-                previewSnapshot = null;
-                updateColors();
-            }
+            meshRenderer.clearPreviewHighlight();
             return;
         }
         if (!sourceImageData || !currentGeometry) return;
-        // Start each preview from the original state so faces that are no
-        // longer covered by the image revert instead of keeping stale values.
-        if (!previewSnapshot) {
-            previewSnapshot = lifeEngine.snapshot();
-        } else {
-            lifeEngine.restore(previewSnapshot);
-        }
         const { alive, mask } = rasterize(currentGeometry, sourceImageData, options);
-        lifeEngine.setCells(alive, mask);
-        updateColors();
+        meshRenderer.setPreviewHighlight(alive, mask);
     },
     onStateChange: () => syncUrl()
 });
